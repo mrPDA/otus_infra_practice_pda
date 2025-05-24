@@ -47,6 +47,7 @@ __pycache__/
 .Python
 venv/
 ENV/
+check_bucket_size.py
 
 # Logs and temporary files
 *.log
@@ -54,3 +55,4 @@ rez.txt
 *.tmp
 *.bak
 *.swp
+create_spark/command.txt
