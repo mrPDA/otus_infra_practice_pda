@@ -23,3 +23,5 @@ create-admin-sa/
 .DS_Store
 command.txt
 
+.terraform.lock.hcl
+.terraform.lock.hcl
