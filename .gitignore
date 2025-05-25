@@ -17,7 +17,7 @@ create-admin-sa/
 
 # IDE
 .idea/
-# .vscode/ - temporarily commented to remove files
+.vscode/
 
 # OS specific
 .DS_Store
