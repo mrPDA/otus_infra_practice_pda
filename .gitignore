@@ -5,11 +5,12 @@
 *.tfvars
 .terraform/
 
-# Secrets
+# Secrets and sensitive directories
 *.pem
 *.key
 admin-key.json
 .env
+create-admin-sa/
 
 # IDE
 .idea/
