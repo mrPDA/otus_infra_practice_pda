@@ -5,6 +5,9 @@
 *.tfvars
 .terraform/
 
+# Command files with sensitive data
+command.txt
+
 # Secrets and sensitive directories
 *.pem
 *.key
