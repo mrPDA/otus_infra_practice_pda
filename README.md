@@ -19,10 +19,9 @@ git clone <repository-url>
 cd otus-practice-cloud-infra
 ```
 
-2. Создайте файл `.env` на основе `.env.example`:
-```bash
-cp create_spark/.env.example create_spark/.env
-```
+
+
+2. Создайте файл `.env`
 
 3. Настройте переменные окружения в файле `.env`:
    - Укажите пути к SSH ключам
@@ -30,11 +29,7 @@ cp create_spark/.env.example create_spark/.env
    - Настройте доступы к S3
 
 4. Создайте сервисный аккаунт и получите ключи доступа:
-```bash
-cd create-admin-sa
-./create-key.sh
-cd ..
-```
+
 
 5. Создайте и настройте кластер:
 ```bash
@@ -75,6 +70,25 @@ hadoop distcp \
   s3a://your-bucket/* \
   hdfs:///user/ubuntu/data/
 ```
+
+```bash
+ssh -o StrictHostKeyChecking=no ubuntu@rc1a-dataproc-m-****_fv.mdb.yandexcloud.net "hadoop distcp \
+  -D fs.s3a.access.key=$TF_VAR_s3_access_key \
+  -D fs.s3a.secret.key=$TF_VAR_s3_secret_key \
+  -D fs.s3a.endpoint=storage.yandexcloud.net \
+  -D dfs.replication=1 \
+  -D dfs.blocksize=128m \
+  -D mapreduce.job.maps=10 \
+  -D mapreduce.map.memory.mb=2048 \
+  -D mapreduce.map.java.opts=-Xmx1536m \
+  -D dfs.client.use.datanode.hostname=true \
+  -update -log /tmp/distcp_log \
+  s3a://$TF_VAR_bucket_name/* \
+  hdfs:///user/ubuntu/data/"
+```
+
+Результат копирования
+![copy_rez](https://github.com/user-attachments/assets/4bf55f96-71f7-4fb9-ada8-4240830eaac7)
 
 ## 🧹 Очистка ресурсов
 
