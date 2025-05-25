@@ -25,3 +25,4 @@ command.txt
 
 .terraform.lock.hcl
 .terraform.lock.hcl
+create-admin-sa/
