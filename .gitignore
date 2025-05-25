@@ -1,58 +1,21 @@
-# macOS system files
-.DS_Store
-.AppleDouble
-.LSOverride
 
-# Environment files
-.env
-.env.*
-!.env.example
-
-# Terraform files
-**/.terraform/*
+# Terraform
 *.tfstate
 *.tfstate.*
-.terraform.lock.hcl
-.terraformrc
-terraform.rc
-crash.log
-crash.*.log
 *.tfvars
-*.tfvars.json
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
+.terraform/
 
-# Credentials and sensitive data
-**/admin-key.json
-**/*.pem
-**/*.key
-**/*.crt
-**/*.pfx
-**/*.p12
-.create-admin_sa/
-.create-admin-sa/
-**/.env
-**/*.secret
-**/credentials.*
-**/terraform.tfvars
-**/*.tfstate.backup
+# Secrets
+*.pem
+*.key
+admin-key.json
+.env
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-ENV/
-check_bucket_size.py
+# IDE
+.idea/
+.vscode/
 
-# Logs and temporary files
-*.log
-rez.txt
-*.tmp
-*.bak
-*.swp
-create_spark/command.txt
+# OS specific
+.DS_Store
+command.txt
+

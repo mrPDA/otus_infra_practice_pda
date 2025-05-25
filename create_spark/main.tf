@@ -7,25 +7,76 @@ terraform {
 }
 
 provider "yandex" {
-  cloud_id  = var.cloud_id
-  folder_id = var.folder_id
-  zone      = var.zone
+  service_account_key_file = var.service_account_key_file
+  cloud_id                 = var.cloud_id
+  folder_id               = var.folder_id
+  zone                    = var.zone
 }
 
-# Network resources
-resource "yandex_vpc_network" "network" {
-  name = "dataproc-network"
+resource "yandex_vpc_security_group" "dataproc_security_group" {
+  name       = "dataproc-security-group"
+  folder_id  = var.folder_id
+  network_id = var.network_id
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Allow SSH connections"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    port           = 22
+  }
+
+  ingress {
+    protocol       = "TCP"
+    description    = "Allow HTTPS connections"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    port           = 443
+  }
+
+  ingress {
+    protocol       = "ANY"
+    description    = "Allow all cluster internal traffic"
+    predefined_target = "self_security_group"
+    from_port      = 0
+    to_port        = 65535
+  }
+
+  egress {
+    protocol       = "ANY"
+    description    = "Allow all cluster internal traffic"
+    predefined_target = "self_security_group"
+    from_port      = 0
+    to_port        = 65535
+  }
+
+  egress {
+    protocol       = "UDP"
+    description    = "Allow NTP connections"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    port           = 123
+  }
+
+  egress {
+    protocol       = "ANY"
+    description    = "Allow outgoing connections to specific Yandex Cloud services"
+    v4_cidr_blocks = [
+      "84.201.181.26/32",    # Data Processing status and jobs
+      "158.160.59.216/32",   # Monitoring and autoscaling
+      "213.180.193.243/32",  # Object Storage
+      "84.201.181.184/32"    # Cloud Logging
+    ]
+    from_port      = 0
+    to_port        = 65535
+  }
 }
 
-# NAT Gateway
 resource "yandex_vpc_gateway" "nat_gateway" {
-  name = "dataproc-nat-gateway"
+  name = "nat-gateway"
   shared_egress_gateway {}
 }
 
-resource "yandex_vpc_route_table" "route_table" {
-  name       = "dataproc-route-table"
-  network_id = yandex_vpc_network.network.id
+resource "yandex_vpc_route_table" "nat_route_table" {
+  name       = "nat-route-table"
+  network_id = var.network_id
 
   static_route {
     destination_prefix = "0.0.0.0/0"
@@ -33,124 +84,55 @@ resource "yandex_vpc_route_table" "route_table" {
   }
 }
 
-resource "yandex_vpc_subnet" "subnet" {
+resource "yandex_vpc_subnet" "dataproc_subnet" {
   name           = "dataproc-subnet"
+  network_id     = var.network_id
+  v4_cidr_blocks = ["10.131.0.0/24"]  # Changed to avoid overlap with existing subnets
   zone           = var.zone
-  network_id     = yandex_vpc_network.network.id
-  v4_cidr_blocks = ["10.1.0.0/24"]
-  route_table_id = yandex_vpc_route_table.route_table.id
+  route_table_id = yandex_vpc_route_table.nat_route_table.id
 }
 
-# Security group
-resource "yandex_vpc_security_group" "security_group" {
-  name        = "dataproc-security-group"
-  description = "Security group for Dataproc cluster"
-  network_id  = yandex_vpc_network.network.id
-
-  ingress {
-    protocol       = "TCP"
-    description    = "SSH access"
-    v4_cidr_blocks = ["0.0.0.0/0"]
-    port           = 22
-  }
-
-  ingress {
-    protocol       = "TCP"
-    description    = "YARN web interfaces"
-    v4_cidr_blocks = ["0.0.0.0/0"]
-    port           = 8088
-  }
-
-  ingress {
-    protocol       = "TCP"
-    description    = "Spark History Server"
-    v4_cidr_blocks = ["0.0.0.0/0"]
-    port           = 18080
-  }
-
-  ingress {
-    protocol          = "ANY"
-    description       = "Internal cluster traffic"
-    from_port         = 0
-    to_port           = 65535
-    predefined_target = "self_security_group"
-  }
-
-  egress {
-    protocol       = "ANY"
-    description    = "All outgoing traffic"
-    v4_cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-# IAM roles for service account
-resource "yandex_resourcemanager_folder_iam_member" "sa_roles" {
-  for_each = toset([
-    "storage.admin",
-    "dataproc.editor",
-    "compute.admin",
-    "dataproc.agent",
-    "mdb.dataproc.agent",
-    "vpc.user",
-    "iam.serviceAccounts.user",
-    "storage.uploader",
-    "storage.viewer",
-    "storage.editor"
-  ])
-
-  folder_id = var.folder_id
-  role      = each.key
-  member    = "serviceAccount:${var.service_account_id}"
-}
-
-# Data Proc cluster
 resource "yandex_dataproc_cluster" "spark_cluster" {
-  depends_on = [yandex_resourcemanager_folder_iam_member.sa_roles]
-  
-  name               = var.cluster_name
-  description        = "Spark cluster for data processing"
+  name                = var.cluster_name
+  description         = "Spark cluster for data processing"
   folder_id          = var.folder_id
   service_account_id = var.service_account_id
-  zone_id            = var.zone
-  security_group_ids = [yandex_vpc_security_group.security_group.id]
-  bucket             = var.s3_bucket
+  security_group_ids = [yandex_vpc_security_group.dataproc_security_group.id]
 
   cluster_config {
     version_id = "2.0"
 
     hadoop {
-      services = ["HDFS", "YARN", "SPARK"]
-      properties = {
-        "yarn:yarn.resourcemanager.am.max-attempts" = 5
-      }
-      ssh_public_keys = [file(var.public_key_path)]
+      ssh_public_keys = [
+        file(var.public_key_path)
+      ]
     }
 
-    # Master node - exactly as specified
     subcluster_spec {
       name = "master"
       role = "MASTERNODE"
       resources {
         resource_preset_id = "s3-c2-m8"
-        disk_type_id      = "network-hdd"
+        disk_type_id      = "network-ssd"
         disk_size         = 40
       }
-      subnet_id        = yandex_vpc_subnet.subnet.id
-      hosts_count      = 1
+      subnet_id   = yandex_vpc_subnet.dataproc_subnet.id  # Updated to use the new subnet
+      hosts_count = 1
       assign_public_ip = true
     }
 
-    # Data node - exactly as specified
     subcluster_spec {
       name = "data"
       role = "DATANODE"
       resources {
         resource_preset_id = "s3-c4-m16"
-        disk_type_id      = "network-hdd"
+        disk_type_id      = "network-ssd"
         disk_size         = 128
       }
-      subnet_id   = yandex_vpc_subnet.subnet.id
+      subnet_id   = yandex_vpc_subnet.dataproc_subnet.id
       hosts_count = 3
+      assign_public_ip = true
     }
+
   }
 }
